@@ -1,0 +1,54 @@
+# Render Blueprint: deploys the API and the web app from this repo.
+# Values marked `sync: false` are secrets you enter in the Render dashboard; they are never stored here.
+services:
+  - type: web
+    name: spm-banking-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: DEFAULT_ADMIN_USER_ID
+        sync: false
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false
+      # Must match the web app's address below
+      - key: FRONTEND_URL
+        value: https://spm-banking-web.onrender.com
+      - key: GEMINI_API_KEY_1
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FX_USD_INR
+        value: "88"
+
+  - type: web
+    name: spm-banking-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    # Single-page app: every path serves index.html so refreshes work
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Must match the API's address above
+      - key: VITE_API_BASE_URL
+        value: https://spm-banking-api.onrender.com

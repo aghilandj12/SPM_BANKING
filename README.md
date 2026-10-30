@@ -46,7 +46,17 @@ cp .env.example .env
 npm run dev                 # http://localhost:5173
 ```
 
-A default user is created on first start (see `backend/routes/auth.js`). Change its password before any shared or public deployment.
+On first start the backend creates a login from `DEFAULT_ADMIN_USER_ID` and `DEFAULT_ADMIN_PASSWORD` in `backend/.env` if that user doesn't exist yet.
+
+## Deploying (Render)
+
+`render.yaml` deploys both parts from this repo: the API (`spm-banking-api`, Node web service) and the web app (`spm-banking-web`, static site).
+
+1. In MongoDB Atlas → **Network Access**, allow `0.0.0.0/0` (Render's free tier has no fixed IP).
+2. In Render: **New → Blueprint**, pick this repository, and enter the secret values it asks for (`MONGO_URI`, `DEFAULT_ADMIN_USER_ID`, `DEFAULT_ADMIN_PASSWORD`, Gemini / Groq keys). `JWT_SECRET` is generated automatically.
+3. If Render gives either service a different address than `https://spm-banking-api.onrender.com` / `https://spm-banking-web.onrender.com`, update `FRONTEND_URL` (API) and `VITE_API_BASE_URL` (web app) to match and redeploy.
+
+Free Render services sleep after 15 minutes idle; the first request after that takes about a minute.
 
 > `npm run seed` erases saved analyses. On a database that already has data, use `npm run seed:products` and `npm run seed:policies` instead.
 

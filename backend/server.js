@@ -19,6 +19,9 @@ connectDB();
 
 const app = express();
 
+// Behind a hosting proxy (e.g. Render), use the visitor's real IP for login lockout.
+app.set('trust proxy', 1);
+
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map(o => o.trim())

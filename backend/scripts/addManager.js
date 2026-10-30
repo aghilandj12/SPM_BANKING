@@ -21,11 +21,12 @@ const addManager = async () => {
   try {
     await connectDB();
 
-    const managerData = {
-      name: "aghilan",
-      userId: "aghilan",
-      password: "12345678"
-    };
+    const userId = (process.env.DEFAULT_ADMIN_USER_ID || '').trim();
+    const password = process.env.DEFAULT_ADMIN_PASSWORD || '';
+    if (!userId || !password) {
+      throw new Error('Set DEFAULT_ADMIN_USER_ID and DEFAULT_ADMIN_PASSWORD in backend/.env');
+    }
+    const managerData = { name: userId, userId, password };
 
     // Check if user already exists
     const existingUser = await User.findOne({ userId: managerData.userId });

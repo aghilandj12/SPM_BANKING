@@ -28,5 +28,8 @@
     "multer": "^2.2.0",
     "pdf-parse": "^2.4.5",
     "tesseract.js": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

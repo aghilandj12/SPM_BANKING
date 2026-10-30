@@ -10,17 +10,24 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 
 const isHashed = (value) => typeof value === 'string' && /^\$2[aby]\$\d{2}\$/.test(value);
 
-// Seed the default user if it doesn't exist (password stored hashed)
+// Seed the default user from env if it doesn't exist (password stored hashed).
+// Credentials never live in the code, which is public.
 const seedUser = async () => {
+  const userId = (process.env.DEFAULT_ADMIN_USER_ID || '').trim();
+  const password = process.env.DEFAULT_ADMIN_PASSWORD || '';
+  if (!userId || !password) {
+    console.log('[Auth] DEFAULT_ADMIN_USER_ID / DEFAULT_ADMIN_PASSWORD not set; no default user seeded.');
+    return;
+  }
   try {
-    const existingUser = await User.findOne({ userId: 'aghilan' });
+    const existingUser = await User.findOne({ userId });
     if (!existingUser) {
       await User.create({
-        name: 'aghilan',
-        userId: 'aghilan',
-        password: await bcrypt.hash('12345678', BCRYPT_ROUNDS)
+        name: userId,
+        userId,
+        password: await bcrypt.hash(password, BCRYPT_ROUNDS)
       });
-      console.log('Default user seeded: aghilan');
+      console.log(`Default user seeded: ${userId}`);
     }
   } catch (err) {
     console.error('Error seeding user:', err);
