@@ -1,0 +1,797 @@
+
+/* ================= STATE ================= */
+const state = {
+  customers: [
+    {id:'C001', name:'Arun Kumar', status:'Active', creditLimit:1000000, outstanding:750000, collateral:1200000, income:800000, existingLoan:500000},
+    {id:'C002', name:'Priya Sharma', status:'Active', creditLimit:1500000, outstanding:400000, collateral:2200000, income:1400000, existingLoan:200000},
+    {id:'C003', name:'Rajesh Menon', status:'Active', creditLimit:2000000, outstanding:1850000, collateral:2000000, income:900000, existingLoan:1400000},
+    {id:'C004', name:'Sneha Iyer', status:'Active', creditLimit:800000, outstanding:300000, collateral:1000000, income:600000, existingLoan:150000},
+    {id:'C005', name:'Vikram Nair', status:'Active', creditLimit:1200000, outstanding:1020000, collateral:1300000, income:750000, existingLoan:600000},
+    {id:'C006', name:'Kavita Das', status:'Dormant', creditLimit:500000, outstanding:50000, collateral:700000, income:400000, existingLoan:0},
+  ],
+  history: [],
+  currentView: 'dashboard',
+  currentCustomerId: null,
+};
+
+const POLICY_DOCS = {
+  'Home Loan': "Home Loan Policy (v3.2): Eligible for salaried and self-employed applicants. Max tenure 25 years. Required documents: identity proof, income proof (latest 3 months payslips or 2 years ITR), bank statements (6 months), property title documents and valuation report. Loan-to-value capped at 80% of property value. Applicant existing EMI obligations must not exceed 50% of net monthly income.",
+  'Personal Loan': "Personal Loan Policy (v2.1): Unsecured facility for salaried applicants with minimum 1 year current employment. Required documents: identity proof, income proof (latest 3 payslips), bank statements (3 months). Maximum tenure 5 years. Pricing is risk-based on bureau score and existing exposure.",
+  'Education Loan': "Education Loan Policy (v1.8): Covers tuition, hostel and books for recognised institutions. Required documents: admission letter, fee structure, co-applicant (parent/guardian) income proof, collateral required above ₹40L. Moratorium available until 6 months post course completion.",
+};
+
+/* ================= HELPERS ================= */
+function fmtINR(n){
+  if(n === null || n === undefined) return '—';
+  return '₹' + (n/100000).toLocaleString('en-IN',{maximumFractionDigits:2}) + ' L';
+}
+function fmtPct(n){ return n.toFixed(1) + '%'; }
+function fmtX(n){ return n.toFixed(2) + 'x'; }
+function todayStr(){
+  return new Date().toLocaleDateString('en-IN',{day:'2-digit', month:'short', year:'numeric'});
+}
+function getCustomer(id){ return state.customers.find(c => c.id === id); }
+function esc(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ---- deterministic financial calculator ---- */
+function calcMetrics(c){
+  const utilization = c.creditLimit ? (c.outstanding / c.creditLimit) * 100 : 0;
+  const coverage = c.outstanding > 0 ? (c.collateral / c.outstanding) : (c.collateral > 0 ? 99 : 0);
+  const totalExposure = c.outstanding + c.existingLoan;
+  const incomeRatio = totalExposure > 0 ? c.income / totalExposure : 99;
+  const exposureRatio = c.creditLimit ? c.existingLoan / c.creditLimit : 0;
+  return {utilization, coverage, totalExposure, incomeRatio, exposureRatio};
+}
+
+/* ---- rule-based risk engine ---- */
+function riskEngine(m){
+  const utilScore = Math.min(100, m.utilization);
+  const covScore = m.coverage >= 1.5 ? 15 : m.coverage >= 1.0 ? 45 : 80;
+  const incScore = m.incomeRatio >= 1.5 ? 15 : m.incomeRatio >= 0.8 ? 45 : 80;
+  const expScore = m.exposureRatio >= 0.6 ? 80 : m.exposureRatio >= 0.3 ? 45 : 15;
+  const score = Math.round(utilScore*0.35 + covScore*0.25 + incScore*0.2 + expScore*0.2);
+  const level = score < 35 ? 'LOW' : score < 65 ? 'MEDIUM' : 'HIGH';
+  const factors = {
+    utilization: m.utilization > 75 ? 'High' : m.utilization >= 50 ? 'Medium' : 'Low',
+    collateral: m.coverage >= 1.5 ? 'Good' : m.coverage >= 1.0 ? 'Moderate' : 'Weak',
+    income: m.incomeRatio >= 1.5 ? 'Good' : m.incomeRatio >= 0.8 ? 'Moderate' : 'Weak',
+    exposure: m.exposureRatio >= 0.6 ? 'High' : m.exposureRatio >= 0.3 ? 'Medium' : 'Low',
+  };
+  return {score, level, factors};
+}
+
+/* ---- rule-based decision engine (G4) ---- */
+function decisionEngine(factors){
+  if(factors.collateral === 'Weak' || factors.income === 'Weak') return 'HOLD';
+  if(factors.utilization === 'High') return 'CONDITIONS';
+  if(factors.collateral === 'Good' && factors.income === 'Good') return 'ASK';
+  return 'CONDITIONS';
+}
+function decisionLabel(code){
+  return code === 'ASK' ? 'ASK' : code === 'CONDITIONS' ? 'ASK WITH CONDITIONS' : 'HOLD OFF';
+}
+function decisionIcon(code){
+  return code === 'ASK' ? '🟢' : code === 'CONDITIONS' ? '🟡' : '🔴';
+}
+
+function badgeClass(level){
+  return level === 'LOW' ? 'badge-low' : level === 'MEDIUM' ? 'badge-medium' : 'badge-high';
+}
+
+function gaugeSVG(score, level){
+  const clamped = Math.max(0, Math.min(100, score));
+  const color = level === 'LOW' ? 'var(--risk-low)' : level === 'MEDIUM' ? 'var(--risk-medium)' : 'var(--risk-high)';
+  const circumference = Math.PI * 80; // 251.33
+  const filled = (clamped/100) * circumference;
+  const angleDeg = 180 - (clamped/100*180);
+  const rad = angleDeg * Math.PI/180;
+  const x = 100 + 80*Math.cos(rad);
+  const y = 100 - 80*Math.sin(rad);
+  return `<svg viewBox="0 0 200 118" class="gauge">
+    <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#E1E7ED" stroke-width="14" stroke-linecap="round"/>
+    <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round"
+      stroke-dasharray="${filled.toFixed(1)} ${circumference.toFixed(1)}"/>
+    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.5" fill="${color}" stroke="#fff" stroke-width="2"/>
+    <text x="100" y="88" text-anchor="middle" class="gauge-score">${clamped}</text>
+    <text x="100" y="106" text-anchor="middle" class="gauge-label" fill="${color}">${level} RISK</text>
+  </svg>`;
+}
+
+function addHistory(entry){
+  state.history.unshift({ date: todayStr(), ...entry });
+}
+
+/* ================= LLM CALL (deterministic facts -> generative narrative) ================= */
+async function callClaudeJSON(systemPrompt, userPayload){
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [{ role: "user", content: JSON.stringify(userPayload) }],
+    })
+  });
+  if(!response.ok) throw new Error("LLM request failed: " + response.status);
+  const data = await response.json();
+  const textBlocks = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+  const cleaned = textBlocks.replace(/```json|```/g, "").trim();
+  return JSON.parse(cleaned);
+}
+
+/* ================= ROUTER ================= */
+function navigate(view, params={}){
+  state.currentView = view;
+  if(params.customerId) state.currentCustomerId = params.customerId;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.nav === view);
+  });
+  const titles = {
+    dashboard: ['Overview', "Welcome back — here's your book at a glance"],
+    customers: ['Customers', 'Your assigned relationships'],
+    customer360: ['Customer 360', 'Unified profile across all AI modules'],
+    g1: ['Credit Exposure AI Brief', 'Deterministic financial analysis + AI narrative'],
+    g2: ['Loan Counselling Prep', 'Talking points, questions and documents ahead of the meeting'],
+    g3: ['Loan Document Intelligence', 'Extract and summarise loan documents'],
+    g4: ['Limit Increase Assistant', 'Rule-based decision with AI explanation'],
+    history: ['Analysis History', 'All AI module runs across your book'],
+    settings: ['Settings', 'Profile and preferences'],
+  };
+  const [t, s] = titles[view] || ['Meridian', ''];
+  document.getElementById('topbarTitle').textContent = t;
+  document.getElementById('topbarSub').textContent = s;
+  const crumb = document.getElementById('topbarBreadcrumb');
+  crumb.innerHTML = state.currentCustomerId && ['g1','g2','g3','g4','customer360'].includes(view)
+    ? `Customer <b>${esc(getCustomer(state.currentCustomerId)?.name || '')}</b>`
+    : '';
+
+  const renderers = {
+    dashboard: renderDashboard, customers: renderCustomers, customer360: renderCustomer360,
+    g1: renderG1, g2: renderG2, g3: renderG3, g4: renderG4, history: renderHistory, settings: renderSettings,
+  };
+  document.getElementById('viewRoot').innerHTML = renderers[view] ? renderers[view]() : '';
+  wireView(view);
+  window.scrollTo(0,0);
+}
+
+/* ================= VIEWS ================= */
+function renderDashboard(){
+  const totalCustomers = state.customers.length;
+  const totalAnalyses = state.history.length;
+  const highRisk = state.customers.filter(c => riskEngine(calcMetrics(c)).level === 'HIGH').length;
+  const recentRows = state.customers.slice(0,5).map(c => {
+    const r = riskEngine(calcMetrics(c));
+    return `<tr class="row-link" data-open-customer="${c.id}">
+      <td>${esc(c.name)}</td>
+      <td class="mono">${c.id}</td>
+      <td><span class="badge ${badgeClass(r.level)}">${r.level}</span></td>
+      <td><span class="status-dot ${c.status==='Active'?'status-active':'status-dormant'}"></span>${c.status}</td>
+    </tr>`;
+  }).join('');
+
+  const modules = [
+    {code:'G1', color:'linear-gradient(135deg,#1D6FA5,#0F2941)', title:'Credit Exposure Brief', desc:'Utilization, collateral coverage and a rule-based risk score, explained by AI.', view:'g1'},
+    {code:'G2', color:'linear-gradient(135deg,#C8963E,#8A611F)', title:'Loan Counselling Prep', desc:'Talking points and a document checklist retrieved from policy, ahead of the meeting.', view:'g2'},
+    {code:'G3', color:'linear-gradient(135deg,#1E8E5A,#0F2941)', title:'Document Intelligence', desc:'Extract structured facts and a summary from a loan application document.', view:'g3'},
+    {code:'G4', color:'linear-gradient(135deg,#C0392B,#0F2941)', title:'Limit Increase Assistant', desc:'ASK / CONDITIONS / HOLD decision from a deterministic engine, explained by AI.', view:'g4'},
+  ];
+
+  return `
+    <div class="grid cols-4" style="margin-bottom:22px;">
+      <div class="card stat-card"><div class="stat-label">Customers in book</div><div class="stat-value">${totalCustomers}</div></div>
+      <div class="card stat-card"><div class="stat-label">Analyses run</div><div class="stat-value">${totalAnalyses}</div></div>
+      <div class="card stat-card"><div class="stat-label">High risk accounts</div><div class="stat-value" style="color:var(--risk-high)">${highRisk}</div></div>
+      <div class="card stat-card"><div class="stat-label">Active modules</div><div class="stat-value">4</div></div>
+    </div>
+
+    <div class="section-title">AI Modules</div>
+    <div class="grid cols-4" style="margin-bottom:8px;">
+      ${modules.map(m => `
+        <div class="module-card" data-nav-to="${m.view}">
+          <div class="module-tag" style="background:${m.color}">${m.code}</div>
+          <h3>${m.title}</h3>
+          <p>${m.desc}</p>
+        </div>`).join('')}
+    </div>
+
+    <div class="section-title">Recent Customer Activity</div>
+    <div class="card" style="padding:6px 8px;">
+      <table>
+        <thead><tr><th>Customer</th><th>ID</th><th>Risk</th><th>Status</th></tr></thead>
+        <tbody>${recentRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCustomers(){
+  const rows = state.customers.map(c => {
+    const r = riskEngine(calcMetrics(c));
+    return `<tr class="row-link" data-open-customer="${c.id}">
+      <td>${esc(c.name)}</td>
+      <td class="mono">${c.id}</td>
+      <td class="mono">${fmtINR(c.creditLimit)}</td>
+      <td class="mono">${fmtINR(c.outstanding)}</td>
+      <td><span class="badge ${badgeClass(r.level)}">${r.level}</span></td>
+      <td><span class="status-dot ${c.status==='Active'?'status-active':'status-dormant'}"></span>${c.status}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="card" style="padding:6px 8px;">
+      <table>
+        <thead><tr><th>Customer</th><th>ID</th><th>Credit Limit</th><th>Outstanding</th><th>Risk</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCustomer360(){
+  const c = getCustomer(state.currentCustomerId) || state.customers[0];
+  state.currentCustomerId = c.id;
+  const m = calcMetrics(c);
+  const r = riskEngine(m);
+  const prevAnalyses = state.history.filter(h => h.customerId === c.id);
+
+  return `
+    <div class="card" style="margin-bottom:18px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:20px;">${esc(c.name)}</h2>
+          <div style="color:var(--text-400); font-size:12.5px; margin-top:3px;"><span class="status-dot ${c.status==='Active'?'status-active':'status-dormant'}"></span>${c.status} · Customer ${c.id}</div>
+        </div>
+        <span class="badge ${badgeClass(r.level)}">${r.level} RISK</span>
+      </div>
+      <div class="grid cols-3">
+        <div class="metric-box"><div class="label">Income</div><div class="value">${fmtINR(c.income)}</div></div>
+        <div class="metric-box"><div class="label">Total Exposure</div><div class="value">${fmtINR(m.totalExposure)}</div></div>
+        <div class="metric-box"><div class="label">Risk Score</div><div class="value">${r.score} / 100</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="grid cols-4">
+        <div class="metric-box"><div class="label">Credit Limit</div><div class="value">${fmtINR(c.creditLimit)}</div></div>
+        <div class="metric-box"><div class="label">Outstanding</div><div class="value">${fmtINR(c.outstanding)}</div></div>
+        <div class="metric-box"><div class="label">Collateral</div><div class="value">${fmtINR(c.collateral)}</div></div>
+        <div class="metric-box"><div class="label">Existing Loan</div><div class="value">${fmtINR(c.existingLoan)}</div></div>
+      </div>
+    </div>
+
+    <div class="section-title">AI Tools</div>
+    <div class="grid cols-4" style="margin-bottom:8px;">
+      <div class="module-card" data-nav-to="g1" data-with-customer="${c.id}"><h3>Credit Brief</h3><p>G1 risk analysis</p></div>
+      <div class="module-card" data-nav-to="g2" data-with-customer="${c.id}"><h3>Counselling Prep</h3><p>G2 meeting prep</p></div>
+      <div class="module-card" data-nav-to="g3" data-with-customer="${c.id}"><h3>Documents</h3><p>G3 extraction</p></div>
+      <div class="module-card" data-nav-to="g4" data-with-customer="${c.id}"><h3>Limit Increase</h3><p>G4 decision</p></div>
+    </div>
+
+    <div class="section-title">Previous Analyses</div>
+    <div class="card" style="padding:6px 8px;">
+      ${prevAnalyses.length ? `<table><thead><tr><th>Date</th><th>Module</th><th>Result</th></tr></thead><tbody>
+        ${prevAnalyses.map(h => `<tr><td class="mono">${h.date}</td><td>${h.module}</td><td>${h.result}</td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty-state"><div class="glyph">◌</div>No analyses recorded yet for this customer.</div>`}
+    </div>
+  `;
+}
+
+function customerSelector(id, selectedId){
+  return `<select id="${id}">
+    ${state.customers.map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${esc(c.name)} — ${c.id}</option>`).join('')}
+  </select>`;
+}
+
+/* ---- G1 ---- */
+function renderG1(){
+  const selectedId = state.currentCustomerId || state.customers[0].id;
+  return `
+    <div class="customer-select-row">
+      <div class="field-row"><label>Customer</label>${customerSelector('g1CustomerSelect', selectedId)}</div>
+      <button class="btn btn-primary" id="g1RunBtn">Generate Credit Brief</button>
+    </div>
+    <div id="g1Results"></div>
+  `;
+}
+async function runG1(customerId){
+  const c = getCustomer(customerId);
+  const m = calcMetrics(c);
+  const r = riskEngine(m);
+  const root = document.getElementById('g1Results');
+
+  root.innerHTML = `
+    <div class="grid cols-2" style="align-items:start;">
+      <div class="card">
+        <div class="card-title">Exposure Overview</div>
+        <div class="metric-grid">
+          <div class="metric-box"><div class="label">Credit Limit</div><div class="value">${fmtINR(c.creditLimit)}</div></div>
+          <div class="metric-box"><div class="label">Outstanding</div><div class="value">${fmtINR(c.outstanding)}</div></div>
+          <div class="metric-box"><div class="label">Utilization</div><div class="value">${fmtPct(m.utilization)}</div></div>
+          <div class="metric-box"><div class="label">Collateral</div><div class="value">${fmtINR(c.collateral)}</div></div>
+          <div class="metric-box"><div class="label">Coverage</div><div class="value">${fmtX(m.coverage)}</div></div>
+          <div class="metric-box"><div class="label">Income</div><div class="value">${fmtINR(c.income)}</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Risk Assessment</div>
+        <div class="gauge-wrap">${gaugeSVG(r.score, r.level)}</div>
+        <div class="factor-list">
+          <div class="factor-row"><span class="fname">Utilization</span><b>${r.factors.utilization}</b></div>
+          <div class="factor-row"><span class="fname">Collateral coverage</span><b>${r.factors.collateral}</b></div>
+          <div class="factor-row"><span class="fname">Income adequacy</span><b>${r.factors.income}</b></div>
+          <div class="factor-row"><span class="fname">Existing exposure</span><b>${r.factors.exposure}</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">AI Risk Brief</div>
+    <div class="ai-panel" id="g1AiPanel">
+      <div class="loading-line"><span class="spinner"></span> Generating AI risk brief from calculated facts…</div>
+    </div>
+  `;
+
+  const facts = {
+    customer: c.name, riskLevel: r.level, riskScore: r.score,
+    utilizationPct: Math.round(m.utilization), collateralCoverage: Number(m.coverage.toFixed(2)),
+    incomeINR: c.income, existingLoanINR: c.existingLoan, factors: r.factors,
+  };
+
+  try{
+    const out = await callClaudeJSON(
+      "You are a banking risk analyst assistant embedded in a relationship-manager dashboard. You are given pre-calculated deterministic financial facts and a risk classification — never invent numbers. Write a concise, professional RM-facing brief in a neutral banking tone. Respond ONLY with valid JSON matching this shape, no markdown or code fences: {\"summary\": string (2-3 sentences), \"findings\": string[] (3-4 items), \"questions\": string[] (2-3 items)}",
+      facts
+    );
+    renderG1Ai(out, r);
+  }catch(e){
+    renderG1Ai(fallbackG1(facts), r);
+  }
+  addHistory({customerId: c.id, module:'G1', result: r.level});
+}
+function fallbackG1(f){
+  return {
+    summary: `${f.customer}'s account is assessed as ${f.riskLevel} risk (score ${f.riskScore}/100). Utilization stands at ${f.utilizationPct}% against a collateral coverage of ${f.collateralCoverage}x, with existing exposure that should be tracked at the next review.`,
+    findings: [
+      `Credit utilization is ${f.factors.utilization.toLowerCase()} relative to policy comfort levels.`,
+      `Collateral coverage is ${f.factors.collateral.toLowerCase()}.`,
+      `Income adequacy against total exposure is ${f.factors.income.toLowerCase()}.`,
+      `Existing exposure relative to the sanctioned limit is ${f.factors.exposure.toLowerCase()}.`,
+    ],
+    questions: [
+      "Has the customer's income changed since the last review?",
+      "Are there additional undisclosed liabilities?",
+      "Is the collateral valuation current?",
+    ],
+  };
+}
+function renderG1Ai(out, r){
+  document.getElementById('g1AiPanel').outerHTML = `
+    <div class="ai-panel" id="g1AiPanel">
+      <div class="ai-panel-head"><span class="ai-dot"></span><span class="ai-panel-label">AI-generated</span></div>
+      <p class="ai-summary-text">${esc(out.summary)}</p>
+    </div>
+    <div class="grid cols-2" style="margin-top:16px;">
+      <div class="card">
+        <div class="card-title">Key Findings</div>
+        <ul class="findings-list">${out.findings.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Open Questions</div>
+        <ul class="qa-list">${out.questions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- G2 ---- */
+function renderG2(){
+  const selectedId = state.currentCustomerId || state.customers[0].id;
+  return `
+    <div class="customer-select-row">
+      <div class="field-row"><label>Customer</label>${customerSelector('g2CustomerSelect', selectedId)}</div>
+      <div class="field-row"><label>Loan type</label>
+        <select id="g2LoanType">
+          <option>Home Loan</option><option>Personal Loan</option><option>Education Loan</option>
+        </select>
+      </div>
+      <div class="field-row"><label>Requested amount (₹)</label><input type="number" id="g2Amount" value="2500000" step="10000"></div>
+      <button class="btn btn-primary" id="g2RunBtn">Generate Counselling Prep</button>
+    </div>
+    <div id="g2Results"></div>
+  `;
+}
+async function runG2(customerId, loanType, amount){
+  const c = getCustomer(customerId);
+  const m = calcMetrics(c);
+  const root = document.getElementById('g2Results');
+  const policyContext = POLICY_DOCS[loanType];
+
+  root.innerHTML = `
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-title">Customer Snapshot</div>
+        <div class="metric-grid">
+          <div class="metric-box"><div class="label">Income</div><div class="value">${fmtINR(c.income)}</div></div>
+          <div class="metric-box"><div class="label">Existing Loan</div><div class="value">${fmtINR(c.existingLoan)}</div></div>
+          <div class="metric-box"><div class="label">Requested</div><div class="value">${fmtINR(amount)}</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Product / Policy Context <span class="badge badge-neutral">Retrieved · RAG</span></div>
+        <p style="font-size:12.5px; color:var(--text-600); line-height:1.6;">${esc(policyContext)}</p>
+      </div>
+    </div>
+    <div class="section-title">AI Counselling Preparation</div>
+    <div class="ai-panel" id="g2AiPanel">
+      <div class="loading-line"><span class="spinner"></span> Retrieving policy context and preparing talking points…</div>
+    </div>
+  `;
+
+  const facts = {
+    customer: c.name, loanType, requestedAmountINR: amount, incomeINR: c.income, existingLoanINR: c.existingLoan,
+    retrievedPolicyContext: policyContext,
+  };
+
+  try{
+    const out = await callClaudeJSON(
+      "You are a loan counselling prep assistant for a bank relationship manager, using retrieval-augmented generation. You are given a customer snapshot and policy context retrieved from the bank's documents — base the required-documents list strictly on the retrieved context, never invent requirements. Respond ONLY with valid JSON, no markdown or code fences: {\"talkingPoints\": string[] (3-4 items), \"questions\": string[] (3 items), \"documents\": string[] (list document names only, derived from the retrieved policy context)}",
+      facts
+    );
+    renderG2Ai(out);
+  }catch(e){
+    renderG2Ai(fallbackG2(loanType));
+  }
+  addHistory({customerId: c.id, module:'G2', result: `${loanType} prepared`});
+}
+function fallbackG2(loanType){
+  const docsMap = {
+    'Home Loan': ['KYC', 'Income proof', 'Bank statement (6 months)', 'Property documents'],
+    'Personal Loan': ['KYC', 'Income proof', 'Bank statement (3 months)'],
+    'Education Loan': ['Admission letter', 'Fee structure', 'Co-applicant income proof', 'Collateral documents'],
+  };
+  return {
+    talkingPoints: [
+      "Understand the customer's funding requirement and timeline.",
+      "Discuss repayment capacity against current income.",
+      "Review existing liabilities before proposing tenure.",
+      "Explain suitable tenure and rate options.",
+    ],
+    questions: [
+      "What is the intended use of funds?",
+      "What tenure does the customer prefer?",
+      "Are there other existing liabilities to account for?",
+    ],
+    documents: docsMap[loanType] || ['KYC', 'Income proof'],
+  };
+}
+function renderG2Ai(out){
+  document.getElementById('g2AiPanel').outerHTML = `
+    <div class="grid cols-2" id="g2AiPanel">
+      <div class="card">
+        <div class="ai-panel-head"><span class="ai-dot"></span><span class="ai-panel-label">Talking Points</span></div>
+        <ul class="findings-list">${out.talkingPoints.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>
+      </div>
+      <div class="card">
+        <div class="ai-panel-head"><span class="ai-dot"></span><span class="ai-panel-label">Questions for Customer</span></div>
+        <ul class="qa-list">${out.questions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Required Documents</div>
+      <ul class="checklist">${out.documents.map(d=>`<li><span class="check-yes">✓</span>${esc(d)}</li>`).join('')}</ul>
+    </div>
+  `;
+}
+
+/* ---- G3 ---- */
+const SAMPLE_DOC = `LOAN APPLICATION FORM
+
+Customer Name: Arun Kumar
+Loan Type: Home Loan
+Requested Amount: Rs. 25,00,000
+Annual Income: Rs. 8,00,000
+Employment: Salaried, ABC Technologies Pvt Ltd, 6 years
+Existing Loan: Rs. 5,00,000 (Auto loan, 18 months remaining)
+Property: 2BHK apartment, Whitefield, Bangalore
+Co-applicant: None
+
+Notes: Customer has requested a home loan of Rs. 25 lakh for purchase of an
+under-construction apartment. Salary slips for the last 3 months and Form 16
+for the last 2 years have been submitted. Bank statement for the last 4 months
+provided; latest month is pending. Property documents submitted but valuation
+report not yet available.`;
+
+function renderG3(){
+  return `
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-title">Upload Loan Document <span class="badge badge-neutral">Text input</span></div>
+      <div class="field-row">
+        <textarea id="g3DocText" placeholder="Paste the extracted text of a loan application, KYC form, or scanned document here…"></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="g3RunBtn">Extract &amp; Summarize</button>
+        <button class="btn btn-ghost" id="g3SampleBtn">Load sample document</button>
+      </div>
+    </div>
+    <div id="g3Results"></div>
+  `;
+}
+async function runG3(docText){
+  const root = document.getElementById('g3Results');
+  root.innerHTML = `<div class="ai-panel"><div class="loading-line"><span class="spinner"></span> Extracting structured fields and summarizing…</div></div>`;
+
+  try{
+    const out = await callClaudeJSON(
+      "You are a document intelligence assistant for a bank. You are given raw text extracted (via OCR/parsing) from a loan document. Extract structured fields and produce a concise RM-facing summary. If a field is missing, use null. Respond ONLY with valid JSON, no markdown or code fences: {\"customer\":{\"name\":string|null,\"loanType\":string|null,\"amount\":string|null,\"income\":string|null,\"employment\":string|null,\"existingLoan\":string|null},\"summary\":string,\"keyFindings\":string[],\"missingDocuments\":string[],\"openQuestions\":string[]}",
+      { documentText: docText }
+    );
+    renderG3Results(out);
+  }catch(e){
+    renderG3Results(fallbackG3());
+  }
+  addHistory({customerId: null, module:'G3', result:'Document processed'});
+}
+function fallbackG3(){
+  return {
+    customer:{name:'Arun Kumar', loanType:'Home Loan', amount:'₹25,00,000', income:'₹8,00,000', employment:'Salaried', existingLoan:'₹5,00,000'},
+    summary: "The applicant has requested a home loan of ₹25L against an annual income of ₹8L, with an existing auto loan of ₹5L. Salary and Form 16 documents are on file; the latest bank statement and property valuation are still pending.",
+    keyFindings: ["Customer has an active existing loan.", "Income proof (Form 16, payslips) is available.", "Property documentation submitted but valuation is outstanding."],
+    missingDocuments: ["Latest month bank statement", "Property valuation report"],
+    openQuestions: ["Is the existing auto loan in good standing?", "What is the expected possession date for the property?"],
+  };
+}
+function renderG3Results(out){
+  const c = out.customer || {};
+  document.getElementById('g3Results').innerHTML = `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Extracted Customer Information</div>
+      <div class="metric-grid">
+        <div class="metric-box"><div class="label">Customer</div><div class="value" style="font-size:14px;">${esc(c.name||'—')}</div></div>
+        <div class="metric-box"><div class="label">Loan Type</div><div class="value" style="font-size:14px;">${esc(c.loanType||'—')}</div></div>
+        <div class="metric-box"><div class="label">Amount</div><div class="value" style="font-size:14px;">${esc(c.amount||'—')}</div></div>
+        <div class="metric-box"><div class="label">Income</div><div class="value" style="font-size:14px;">${esc(c.income||'—')}</div></div>
+        <div class="metric-box"><div class="label">Employment</div><div class="value" style="font-size:14px;">${esc(c.employment||'—')}</div></div>
+        <div class="metric-box"><div class="label">Existing Loan</div><div class="value" style="font-size:14px;">${esc(c.existingLoan||'—')}</div></div>
+      </div>
+    </div>
+    <div class="ai-panel" style="margin-bottom:16px;">
+      <div class="ai-panel-head"><span class="ai-dot"></span><span class="ai-panel-label">AI Summary</span></div>
+      <p class="ai-summary-text">${esc(out.summary)}</p>
+    </div>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-title">Key Findings</div>
+        <ul class="findings-list">${out.keyFindings.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Missing Documents</div>
+        <ul class="checklist">${out.missingDocuments.map(d=>`<li><span class="check-no">⚠</span>${esc(d)}</li>`).join('')}</ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Open Questions</div>
+      <ul class="qa-list">${out.openQuestions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+    </div>
+  `;
+}
+
+/* ---- G4 ---- */
+function renderG4(){
+  const selectedId = state.currentCustomerId || state.customers[0].id;
+  const c = getCustomer(selectedId);
+  return `
+    <div class="customer-select-row">
+      <div class="field-row"><label>Customer</label>${customerSelector('g4CustomerSelect', selectedId)}</div>
+      <div class="field-row"><label>Requested additional limit (₹)</label><input type="number" id="g4Amount" value="500000" step="10000"></div>
+      <button class="btn btn-primary" id="g4RunBtn">Generate Decision</button>
+    </div>
+    <div id="g4Results"></div>
+  `;
+}
+async function runG4(customerId, requestedAdditional){
+  const c = getCustomer(customerId);
+  const m = calcMetrics(c);
+  const r = riskEngine(m);
+  const decisionCode = decisionEngine(r.factors);
+  const root = document.getElementById('g4Results');
+
+  root.innerHTML = `
+    <div class="grid cols-2" style="align-items:start;">
+      <div class="card">
+        <div class="card-title">Financial Position</div>
+        <div class="metric-grid">
+          <div class="metric-box"><div class="label">Outstanding</div><div class="value">${fmtINR(c.outstanding)}</div></div>
+          <div class="metric-box"><div class="label">Utilization</div><div class="value">${fmtPct(m.utilization)}</div></div>
+          <div class="metric-box"><div class="label">Collateral</div><div class="value">${fmtINR(c.collateral)}</div></div>
+          <div class="metric-box"><div class="label">Coverage</div><div class="value">${fmtX(m.coverage)}</div></div>
+          <div class="metric-box"><div class="label">Income</div><div class="value">${fmtINR(c.income)}</div></div>
+          <div class="metric-box"><div class="label">Requested</div><div class="value">${fmtINR(requestedAdditional)}</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Decision</div>
+        <div class="decision-banner ${decisionCode}">
+          <div style="font-size:30px;">${decisionIcon(decisionCode)}</div>
+          <div class="decision-text">${decisionLabel(decisionCode)}</div>
+        </div>
+        <div class="factor-list">
+          <div class="factor-row"><span class="fname">Utilization</span><b>${r.factors.utilization}</b></div>
+          <div class="factor-row"><span class="fname">Collateral</span><b>${r.factors.collateral}</b></div>
+          <div class="factor-row"><span class="fname">Income</span><b>${r.factors.income}</b></div>
+          <div class="factor-row"><span class="fname">Exposure</span><b>${r.factors.exposure}</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="section-title">Why?</div>
+    <div class="ai-panel" id="g4AiPanel">
+      <div class="loading-line"><span class="spinner"></span> Generating explanation and conditions…</div>
+    </div>
+  `;
+
+  const facts = {
+    customer: c.name, decision: decisionLabel(decisionCode), requestedAdditionalINR: requestedAdditional,
+    utilizationPct: Math.round(m.utilization), collateralCoverage: Number(m.coverage.toFixed(2)), factors: r.factors,
+  };
+  try{
+    const out = await callClaudeJSON(
+      "You are a banking credit decision-support assistant. You are given a deterministic decision (ASK / ASK WITH CONDITIONS / HOLD OFF) already produced by a rule engine — never change or contradict the decision, only explain it. Respond ONLY with valid JSON, no markdown or code fences: {\"reasons\": string[] (3-4 items), \"conditions\": string[] (0-3 items, empty array if decision is ASK), \"openQuestions\": string[] (2-3 items)}",
+      facts
+    );
+    renderG4Ai(out);
+  }catch(e){
+    renderG4Ai(fallbackG4(facts, decisionCode));
+  }
+  addHistory({customerId: c.id, module:'G4', result: decisionLabel(decisionCode)});
+}
+function fallbackG4(f, code){
+  return {
+    reasons: [
+      `Current utilization is ${f.factors.utilization.toLowerCase()} at ${f.utilizationPct}%.`,
+      `Collateral coverage is ${f.factors.collateral.toLowerCase()} at ${f.collateralCoverage}x.`,
+      `Income adequacy against exposure is ${f.factors.income.toLowerCase()}.`,
+      `Existing exposure is ${f.factors.exposure.toLowerCase()} relative to sanctioned limit.`,
+    ],
+    conditions: code === 'ASK' ? [] : ["Verify latest income documents.", "Review repayment history.", "Confirm current collateral valuation."],
+    openQuestions: ["Does the customer have other undisclosed liabilities?", "Has income changed recently?", "Is the requested increase tied to a specific need?"],
+  };
+}
+function renderG4Ai(out){
+  document.getElementById('g4AiPanel').outerHTML = `
+    <div class="card" id="g4AiPanel">
+      <div class="ai-panel-head"><span class="ai-dot"></span><span class="ai-panel-label">Reasons</span></div>
+      <ul class="findings-list">${out.reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>
+    </div>
+    ${out.conditions && out.conditions.length ? `
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Conditions</div>
+      <ul class="checklist">${out.conditions.map((c,i)=>`<li><span class="check-yes">${i+1}.</span>${esc(c)}</li>`).join('')}</ul>
+    </div>` : ''}
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Open Questions</div>
+      <ul class="qa-list">${out.openQuestions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+    </div>
+  `;
+}
+
+/* ---- History ---- */
+function renderHistory(){
+  const modules = ['All Modules','G1','G2','G3','G4'];
+  const rows = state.history.map(h => {
+    const cust = h.customerId ? getCustomer(h.customerId) : null;
+    return `<tr>
+      <td class="mono">${h.date}</td>
+      <td>${cust ? esc(cust.name) : '—'}</td>
+      <td><span class="badge badge-gold">${h.module}</span></td>
+      <td>${esc(h.result)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="history-filters">
+      <select id="historyModuleFilter">${modules.map(m=>`<option>${m}</option>`).join('')}</select>
+    </div>
+    <div class="card" style="padding:6px 8px;" id="historyTableWrap">
+      ${state.history.length ? `<table><thead><tr><th>Date</th><th>Customer</th><th>Module</th><th>Result</th></tr></thead>
+      <tbody id="historyTbody">${rows}</tbody></table>` : `<div class="empty-state"><div class="glyph">◌</div>No analyses run yet. Try a module from the sidebar.</div>`}
+    </div>
+  `;
+}
+
+/* ---- Settings ---- */
+function renderSettings(){
+  return `
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="card-title">Profile</div>
+        <div class="field-row"><label>Name</label><input type="text" value="Ramesh Krishnan" disabled></div>
+        <div class="field-row"><label>Email</label><input type="text" value="r.krishnan@meridianbank.demo" disabled></div>
+        <div class="field-row"><label>Role</label><input type="text" value="Relationship Manager" disabled></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Application</div>
+        <p style="font-size:13px; color:var(--text-600); line-height:1.7;">
+          AI narratives are generated live from deterministic financial facts computed on-device.<br>
+          Risk thresholds and decision rules are configured by Credit Policy and are not user-editable in this demo.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+/* ================= WIRING ================= */
+function wireView(view){
+  document.querySelectorAll('[data-open-customer]').forEach(el => {
+    el.addEventListener('click', () => navigate('customer360', {customerId: el.dataset.openCustomer}));
+  });
+  document.querySelectorAll('[data-nav-to]').forEach(el => {
+    el.addEventListener('click', () => {
+      if(el.dataset.withCustomer) state.currentCustomerId = el.dataset.withCustomer;
+      navigate(el.dataset.navTo, {customerId: el.dataset.withCustomer});
+    });
+  });
+
+  if(view === 'g1'){
+    document.getElementById('g1RunBtn').addEventListener('click', () => {
+      const id = document.getElementById('g1CustomerSelect').value;
+      state.currentCustomerId = id;
+      runG1(id);
+    });
+  }
+  if(view === 'g2'){
+    document.getElementById('g2RunBtn').addEventListener('click', () => {
+      const id = document.getElementById('g2CustomerSelect').value;
+      const loanType = document.getElementById('g2LoanType').value;
+      const amount = Number(document.getElementById('g2Amount').value) || 0;
+      state.currentCustomerId = id;
+      runG2(id, loanType, amount);
+    });
+  }
+  if(view === 'g3'){
+    document.getElementById('g3SampleBtn').addEventListener('click', () => {
+      document.getElementById('g3DocText').value = SAMPLE_DOC;
+    });
+    document.getElementById('g3RunBtn').addEventListener('click', () => {
+      const text = document.getElementById('g3DocText').value.trim();
+      if(!text){ document.getElementById('g3DocText').focus(); return; }
+      runG3(text);
+    });
+  }
+  if(view === 'g4'){
+    document.getElementById('g4RunBtn').addEventListener('click', () => {
+      const id = document.getElementById('g4CustomerSelect').value;
+      const amount = Number(document.getElementById('g4Amount').value) || 0;
+      state.currentCustomerId = id;
+      runG4(id, amount);
+    });
+  }
+  if(view === 'history'){
+    const filterEl = document.getElementById('historyModuleFilter');
+    filterEl.addEventListener('change', () => {
+      const val = filterEl.value;
+      const filtered = val === 'All Modules' ? state.history : state.history.filter(h => h.module === val);
+      const rows = filtered.map(h => {
+        const cust = h.customerId ? getCustomer(h.customerId) : null;
+        return `<tr><td class="mono">${h.date}</td><td>${cust?esc(cust.name):'—'}</td><td><span class="badge badge-gold">${h.module}</span></td><td>${esc(h.result)}</td></tr>`;
+      }).join('');
+      document.getElementById('historyTbody').innerHTML = rows;
+    });
+  }
+}
+
+/* ================= NAV / LOGIN WIRING ================= */
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => navigate(el.dataset.nav));
+});
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  document.getElementById('appShell').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+});
+
+function doSignIn(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('active');
+  navigate('dashboard');
+}
+document.getElementById('loginSubmitBtn').addEventListener('click', doSignIn);
+document.getElementById('loginPass').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') doSignIn();
+});
+document.getElementById('loginEmail').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') doSignIn();
+});

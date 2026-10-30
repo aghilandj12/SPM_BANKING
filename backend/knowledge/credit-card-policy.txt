@@ -1,0 +1,10 @@
+Credit & Debit Card Policy (v2.3)
+Credit card variants: Classic (income ₹25,000+/month), Gold (₹50,000+), Platinum (₹1,00,000+), Signature (₹2,50,000+).
+Credit limit: typically 1.5x to 4x net monthly income, subject to bureau score (minimum 700) and existing card exposure.
+Interest-free period: up to 50 days. Finance charge 3.5% per month on revolving balance.
+Minimum amount due: 5% of total outstanding or ₹200, whichever is higher.
+Late payment fee: ₹500 to ₹1,200 depending on outstanding. Over-limit fee 2.5% of over-limit amount.
+Secured card: available against FD lien at 80% of FD value for customers without credit history.
+Rewards: 2-5 points per ₹150 spent depending on variant; points expire after 3 years.
+Limit enhancement: considered after 12 months of on-time payments and utilisation history.
+Debit card: issued with every savings/salary account; daily ATM limit ₹50,000 (Classic) to ₹1,00,000 (Platinum).

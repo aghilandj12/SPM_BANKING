@@ -1,0 +1,9 @@
+Business Loan & Working Capital Policy (v2.0)
+Facility types: Term loan, cash credit/overdraft, secured business loan against property.
+Eligibility: Business vintage minimum 3 years; profitable in last 2 years; annual turnover ₹40 lakh+.
+Maximum amount: Unsecured up to ₹50 lakh; secured up to ₹5 crore subject to collateral.
+Loan-to-value (LTV) for property-backed facilities: up to 65% of market value of commercial property, 70% of residential.
+Tenure: Term loan up to 7 years (15 years against property); working capital renewed annually.
+Pricing: 10.5% to 16.0% based on internal rating, collateral coverage and relationship.
+DSCR: minimum 1.25x. Current ratio for working capital: minimum 1.33x.
+Documents: 2 years audited financials, ITR, GST returns (12 months), 12 months current account statements, business proof.

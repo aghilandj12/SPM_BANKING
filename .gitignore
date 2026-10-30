@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+coverage/
+.DS_Store
+
+# Secrets: never commit real env files (examples are fine)
+.env
+.env.*
+*.env
+!.env.example
+
+# Old archives and runtime uploads
+*.rar
+backend/uploads/

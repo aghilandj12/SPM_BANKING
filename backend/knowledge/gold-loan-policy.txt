@@ -1,0 +1,8 @@
+Gold Loan Policy (v1.3)
+Facility type: Loan against gold jewellery (18-22 carat); bullion and coins above 50g not accepted.
+Loan-to-value (LTV): up to 75% of gold value as per regulatory guidelines.
+Amount: ₹10,000 to ₹50 lakh.
+Tenure: 3 to 24 months; bullet repayment or monthly interest servicing.
+Pricing: 9.0% to 13.5% p.a. based on LTV and scheme.
+Processing: same-day disbursal after purity assessment; no income proof required up to ₹5 lakh.
+Auction policy: initiated after 90 days of overdue with prior notices to customer.

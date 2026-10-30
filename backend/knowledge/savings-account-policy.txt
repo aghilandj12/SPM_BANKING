@@ -1,0 +1,10 @@
+Savings & Salary Account Policy (v1.4)
+Account types: Regular Savings, Salary Account, Premium Savings.
+Eligibility: Resident individuals aged 18+ (minor accounts operated by guardian); full KYC mandatory.
+Minimum average monthly balance (AMB): Regular ₹10,000 (metro/urban), ₹5,000 (semi-urban); Premium ₹1,00,000; Salary account zero balance while salary credits continue.
+Salary account converts to Regular Savings if no salary credit for 3 consecutive months.
+Interest: 3.0% p.a. up to ₹10 lakh balance, 3.5% p.a. above ₹10 lakh; calculated on daily balance, credited quarterly.
+Non-maintenance charge: up to ₹500 per quarter, proportional to shortfall.
+Dormancy: account becomes inoperative after 24 months with no customer-induced transaction; re-activation requires fresh KYC.
+Features: debit card, UPI, net/mobile banking, sweep-in to fixed deposit above ₹50,000 (optional).
+Re-KYC: every 2 years for high-risk, 8 years for medium-risk, 10 years for low-risk customers.

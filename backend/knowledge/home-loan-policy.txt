@@ -1,0 +1,8 @@
+Home Loan Policy (v3.2)
+Eligibility: Salaried and self-employed applicants. Minimum age 21, maximum age 65 at loan maturity.
+Max tenure: 25 years.
+Loan-to-value (LTV) capped at 80% of property value.
+Applicant's existing EMI obligations must not exceed 50% of net monthly income (FOIR < 50%).
+Minimum income requirement: ₹25,000 per month.
+Interest rates: Floating, currently 8.5% to 9.5% based on bureau score and LTV.
+Prepayment penalties: None for floating rate loans.

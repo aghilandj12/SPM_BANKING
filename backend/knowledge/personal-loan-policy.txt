@@ -1,0 +1,8 @@
+Personal Loan Policy (v2.1)
+Facility type: Unsecured term loan.
+Eligibility: Salaried applicants with minimum 1 year current employment or self-employed with 2 years IT returns.
+Minimum income requirement: ₹30,000 per month.
+Maximum tenure: 5 years (60 months).
+Maximum loan amount: ₹15,00,000 or up to 10x monthly net income, whichever is lower.
+Pricing: Risk-based on bureau score and existing exposure. Typical range 11.5% to 15.5%.
+FOIR capped at 60% of net monthly income.

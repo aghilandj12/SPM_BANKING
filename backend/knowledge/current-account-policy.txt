@@ -1,0 +1,8 @@
+Current Account Policy (v1.2)
+Eligible entities: Proprietorships, partnerships, LLPs, private/public limited companies, trusts, and self-employed professionals.
+Minimum average quarterly balance (AQB): Standard ₹25,000; Business Plus ₹1,00,000; Premium Business ₹5,00,000.
+Interest: Not payable on current account balances.
+Free cash deposit limit: 10x AQB per month; charges apply beyond.
+Overdraft: available only against a sanctioned limit (see Business Loan Policy) or FD lien.
+Documents: entity constitution proof, GST registration or trade licence, PAN of entity, KYC of authorised signatories, board resolution (companies).
+Cheque book, RTGS/NEFT, bulk payments and payroll services available.

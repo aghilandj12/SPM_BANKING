@@ -1,0 +1,9 @@
+Investment & Wealth Products Policy (v1.8)
+Products distributed: Mutual funds (equity, debt, hybrid, ELSS), Demat & trading account, bonds, PPF, NPS, sovereign gold bonds.
+Risk profiling: mandatory risk-profile questionnaire before recommending any market-linked product; refresh every 2 years.
+Suitability: Conservative profile — debt funds, bonds, PPF; Moderate — hybrid and large-cap; Aggressive — flexi-cap, mid/small-cap, direct equity.
+SIP: minimum ₹500 per month; recommended horizon 5+ years for equity.
+ELSS: 3-year lock-in, eligible under Section 80C.
+PPF: 15-year tenure, ₹500 to ₹1.5 lakh per year, government-set interest rate.
+NPS: Tier I retirement account; additional ₹50,000 deduction under Section 80CCD(1B).
+Disclosure: past performance does not guarantee future returns; RM must disclose commissions and must not promise assured returns on market-linked products.

@@ -1,0 +1,8 @@
+Education Loan Policy (v1.8)
+Coverage: Covers tuition, hostel, books, and travel for recognised institutions (domestic and international).
+Eligibility: Indian national. Admission secured to higher education course.
+Maximum loan amount: Up to ₹50,00,000 for domestic, ₹1,50,00,000 for international.
+Collateral requirement: Tangible collateral (property/FD) required for amounts above ₹40,00,000.
+Co-applicant requirement: Mandatory (parent/guardian/spouse) with proof of income.
+Moratorium: Available until 6 months post course completion or 1 year after getting a job, whichever is earlier.
+Interest servicing during moratorium: Simple interest applied.

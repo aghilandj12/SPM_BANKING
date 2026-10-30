@@ -1,0 +1,9 @@
+Vehicle Loan Policy (v1.6)
+Facility type: Secured term loan; vehicle hypothecated to the bank.
+Eligibility: Age 21-65 at maturity; minimum income ₹25,000 per month (salaried) or ₹3 lakh p.a. (self-employed).
+Funding: New car up to 90% of on-road price; used car (up to 5 years old) up to 75% of valuation; two-wheeler up to 95%.
+Tenure: New car up to 7 years; used car up to 5 years; two-wheeler up to 4 years.
+Pricing: 8.75% to 12.5% based on bureau score and vehicle category; EV loans 0.25% concession.
+FOIR capped at 55% including proposed EMI.
+Comprehensive motor insurance with bank as loss payee is mandatory throughout tenure.
+Documents: KYC, income proof, proforma invoice, registration certificate (used car), valuation report (used car).
